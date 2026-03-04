@@ -4,30 +4,44 @@
   become: true
   vars:
     oscap_profile: xccdf_org.ssgproject.content_profile_cis_server_l1
-    oscap_policy: ssg-rhel8-ds
 
   tasks:
-    - name: install openscap scanner
+    - name: Install OpenSCAP and SCAP content
       ansible.builtin.package:
-        name: "{{ item }}"
-        state: latest
-      with_items:
-      - openscap-scanner
-      - scap-security-guide
+        name:
+          - openscap-scanner
+          - scap-security-guide
+        state: present
 
-    - name: run openscap
-      command: "oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_cis_server_l1 --results /tmp/OpenScap_results_file.xml /usr/share/xml/scap/ssg/content/ssg-rhel8-ds.xml"
+    - name: Set SCAP content path based on OS
+      ansible.builtin.set_fact:
+        oscap_content: "/usr/share/xml/scap/ssg/content/ssg-{{ ansible_facts['distribution'] | lower }}{{ ansible_facts['distribution_major_version'] }}-ds.xml"
+
+    - name: Verify SCAP content file exists
+      ansible.builtin.stat:
+        path: "{{ oscap_content }}"
+      register: scap_content_stat
+
+    - name: Fail if SCAP content is missing
+      ansible.builtin.fail:
+        msg: "SCAP content file not found at {{ oscap_content }}. Check scap-security-guide installation."
+      when: not scap_content_stat.stat.exists
+
+    - name: Run OpenSCAP evaluation
+      ansible.builtin.command:
+        cmd: >
+          oscap xccdf eval
+          --profile {{ oscap_profile }}
+          --results /tmp/OpenScap_results_file.xml
+          {{ oscap_content }}
       ignore_errors: yes
 
-    - name: generate report
-      command: "oscap xccdf generate report --output /tmp/OpenScap_results_file.html /tmp/OpenScap_results_file.xml"
+    - name: Generate HTML report
+      ansible.builtin.command:
+        cmd: oscap xccdf generate report --output /tmp/OpenScap_results_file.html /tmp/OpenScap_results_file.xml
 
-    - name: download report
-      fetch:
+    - name: Download report to control node
+      ansible.builtin.fetch:
         src: /tmp/OpenScap_results_file.html
-        dest: ../oscap-reports/{{ inventory_hostname }}.html
+        dest: "../oscap-reports/{{ inventory_hostname }}.html"
         flat: yes
-
-    - name: display report
-      ansible.builtin.debug:
-        var: lookup('ansible.builtin.file', '../oscap-reports/{{ inventory_hostname }}.html')
