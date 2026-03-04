@@ -15,7 +15,7 @@
 
     - name: Set SCAP content path based on OS
       ansible.builtin.set_fact:
-        oscap_content: "/usr/share/xml/scap/ssg/content/ssg-{{ ansible_facts['distribution'] | lower }}{{ ansible_facts['distribution_major_version'] }}-ds.xml"
+        oscap_content: "/usr/share/xml/scap/ssg/content/ssg-{{ 'rhel' if ansible_facts['distribution'] in ['RedHat', 'CentOS', 'Rocky', 'AlmaLinux'] else ansible_facts['distribution'] | lower }}{{ ansible_facts['distribution_major_version'] }}-ds.xml"
 
     - name: Verify SCAP content file exists
       ansible.builtin.stat:
